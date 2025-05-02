@@ -12,35 +12,62 @@
   </style>
 </head>
 <body>
-  <h2>Поиск объекта по коду</h2>
-  <input type="text" id="codeInput" placeholder="Введите код объекта" />
-  <button onclick="searchObject()">Поиск</button>
-
-  <div id="result" class="card hidden"></div>
-  <div id="notFound" class="card hidden">
-    <p>Объект не найден.</p>
-    <button onclick="showAddForm()">Добавить объект</button>
-    <button onclick="goBack()">Назад</button>
+  <div id="auth" class="card">
+    <h3>Авторизация</h3>
+    <input type="text" id="login" placeholder="Логин" />
+    <input type="password" id="passwordLogin" placeholder="Пароль" />
+    <button onclick="authenticate()">Войти</button>
   </div>
 
-  <div id="addForm" class="card hidden">
-    <h3 id="formTitle">Добавить объект</h3>
-    <input type="text" id="name" placeholder="Название" />
-    <input type="text" id="address" placeholder="Адрес" />
-    <input type="text" id="devices" placeholder="Устройства" />
-    <input type="text" id="serials" placeholder="Серийники" />
-    <input type="text" id="password" placeholder="Пароль" />
-    <input type="text" id="graphicalPassword" placeholder="Граф. пароль (необязательно)" />
-    <input type="text" id="passwordType" placeholder="Тип пароля (текст, графический, оба)" />
-    <input type="text" id="createdBy" placeholder="Кто добавил / изменил" />
-    <button onclick="submitObject()">Сохранить</button>
-    <button onclick="goBack()">Назад</button>
+  <div id="mainApp" class="hidden">
+    <h2>Поиск объекта по коду</h2>
+    <input type="text" id="codeInput" placeholder="Введите код объекта" />
+    <button onclick="searchObject()">Поиск</button>
+
+    <div id="result" class="card hidden"></div>
+    <div id="notFound" class="card hidden">
+      <p>Объект не найден.</p>
+      <button onclick="showAddForm()">Добавить объект</button>
+      <button onclick="goBack()">Назад</button>
+    </div>
+
+    <div id="addForm" class="card hidden">
+      <h3 id="formTitle">Добавить объект</h3>
+      <input type="text" id="name" placeholder="Название" />
+      <input type="text" id="address" placeholder="Адрес" />
+      <input type="text" id="devices" placeholder="Устройства" />
+      <input type="text" id="serials" placeholder="Серийники" />
+      <input type="text" id="password" placeholder="Пароль" />
+      <input type="text" id="graphicalPassword" placeholder="Граф. пароль (необязательно)" />
+      <input type="text" id="passwordType" placeholder="Тип пароля (текст, графический, оба)" />
+      <button onclick="submitObject()">Сохранить</button>
+      <button onclick="goBack()">Назад</button>
+    </div>
   </div>
 
   <script>
-    const API_URL = 'https://sheetdb.io/api/v1/y9ubonn86lvn7'; // замените на свой URL
+    const API_URL = 'https://sheetdb.io/api/v1/y9ubonn86lvn7'; // Замените на ваш ID
+    const USERS_URL = 'https://sheetdb.io/api/v1/21tdg9l5kzdpu'; // Отдельный лист с логинами
     let isEditMode = false;
     let currentCode = '';
+    let currentUser = null;
+
+    function authenticate() {
+      const login = document.getElementById('login').value;
+      const password = document.getElementById('passwordLogin').value;
+
+      fetch(`${USERS_URL}/search?login=${login}&password=${password}`)
+        .then(res => res.json())
+        .then(users => {
+          if (users.length > 0) {
+            currentUser = users[0];
+            document.getElementById('auth').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+          } else {
+            alert('Неверный логин или пароль');
+          }
+        });
+    }
 
     function searchObject(codeOverride = null) {
       const code = codeOverride || document.getElementById('codeInput').value;
@@ -83,13 +110,12 @@
       document.getElementById('password').value = obj.password;
       document.getElementById('graphicalPassword').value = obj.graphical_password;
       document.getElementById('passwordType').value = obj.password_type;
-      document.getElementById('createdBy').value = obj.modified_by;
       document.getElementById('addForm').classList.remove('hidden');
       document.getElementById('result').classList.add('hidden');
     }
 
     function clearForm() {
-      ['name','address','devices','serials','password','graphicalPassword','passwordType','createdBy'].forEach(id => {
+      ['name','address','devices','serials','password','graphicalPassword','passwordType'].forEach(id => {
         document.getElementById(id).value = '';
       });
     }
@@ -105,12 +131,12 @@
         graphical_password: document.getElementById('graphicalPassword').value,
         password_type: document.getElementById('passwordType').value,
         date_modified: new Date().toISOString().slice(0,10),
-        modified_by: document.getElementById('createdBy').value
+        modified_by: currentUser.name
       };
 
       if (!isEditMode) {
         data.date_added = data.date_modified;
-        data.created_by = data.modified_by;
+        data.created_by = currentUser.name;
         fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

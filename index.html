@@ -15,15 +15,16 @@
   <h2>Поиск объекта по коду</h2>
   <input type="text" id="codeInput" placeholder="Введите код объекта" />
   <button onclick="searchObject()">Поиск</button>
-  
+
   <div id="result" class="card hidden"></div>
   <div id="notFound" class="card hidden">
     <p>Объект не найден.</p>
     <button onclick="showAddForm()">Добавить объект</button>
+    <button onclick="goBack()">Назад</button>
   </div>
 
   <div id="addForm" class="card hidden">
-    <h3>Добавить объект</h3>
+    <h3 id="formTitle">Добавить объект</h3>
     <input type="text" id="name" placeholder="Название" />
     <input type="text" id="address" placeholder="Адрес" />
     <input type="text" id="devices" placeholder="Устройства" />
@@ -31,15 +32,19 @@
     <input type="text" id="password" placeholder="Пароль" />
     <input type="text" id="graphicalPassword" placeholder="Граф. пароль (необязательно)" />
     <input type="text" id="passwordType" placeholder="Тип пароля (текст, графический, оба)" />
-    <input type="text" id="createdBy" placeholder="Кто добавил" />
-    <button onclick="addObject()">Сохранить</button>
+    <input type="text" id="createdBy" placeholder="Кто добавил / изменил" />
+    <button onclick="submitObject()">Сохранить</button>
+    <button onclick="goBack()">Назад</button>
   </div>
 
   <script>
-    const API_URL = 'https://sheetdb.io/api/v1/y9ubonn86lvn7'; // замените на свой URL
+    const API_URL = 'https://sheetdb.io/api/v1/YOUR_API_ID'; // замените на свой URL
+    let isEditMode = false;
+    let currentCode = '';
 
-    function searchObject() {
-      const code = document.getElementById('codeInput').value;
+    function searchObject(codeOverride = null) {
+      const code = codeOverride || document.getElementById('codeInput').value;
+      currentCode = code;
       fetch(`${API_URL}/search?code=${code}`)
         .then(res => res.json())
         .then(data => {
@@ -48,7 +53,7 @@
           const addForm = document.getElementById('addForm');
           if (data.length > 0) {
             const obj = data[0];
-            result.innerHTML = `<strong>${obj.name}</strong><br>Адрес: ${obj.address}<br>Устройства: ${obj.devices}<br>Серийники: ${obj.serials}<br>Пароль: ${obj.password}<br>Граф. пароль: ${obj.graphical_password || '-'}<br>Добавлен: ${obj.date_added} (${obj.created_by})<br>Изменён: ${obj.date_modified} (${obj.modified_by})`;
+            result.innerHTML = `<strong>${obj.name}</strong><br>Адрес: ${obj.address}<br>Устройства: ${obj.devices}<br>Серийники: ${obj.serials}<br>Пароль: ${obj.password}<br>Граф. пароль: ${obj.graphical_password || '-'}<br>Добавлен: ${obj.date_added} (${obj.created_by})<br>Изменён: ${obj.date_modified} (${obj.modified_by})<br><br><button onclick='editObject(${JSON.stringify(obj)})'>Редактировать</button><br><br><button onclick='goBack()'>Назад</button>`;
             result.classList.remove('hidden');
             notFound.classList.add('hidden');
             addForm.classList.add('hidden');
@@ -60,13 +65,38 @@
     }
 
     function showAddForm() {
+      isEditMode = false;
+      document.getElementById('formTitle').innerText = 'Добавить объект';
       document.getElementById('addForm').classList.remove('hidden');
+      document.getElementById('result').classList.add('hidden');
+      document.getElementById('notFound').classList.add('hidden');
+      clearForm();
     }
 
-    function addObject() {
-      const code = document.getElementById('codeInput').value;
+    function editObject(obj) {
+      isEditMode = true;
+      document.getElementById('formTitle').innerText = 'Редактировать объект';
+      document.getElementById('name').value = obj.name;
+      document.getElementById('address').value = obj.address;
+      document.getElementById('devices').value = obj.devices;
+      document.getElementById('serials').value = obj.serials;
+      document.getElementById('password').value = obj.password;
+      document.getElementById('graphicalPassword').value = obj.graphical_password;
+      document.getElementById('passwordType').value = obj.password_type;
+      document.getElementById('createdBy').value = obj.modified_by;
+      document.getElementById('addForm').classList.remove('hidden');
+      document.getElementById('result').classList.add('hidden');
+    }
+
+    function clearForm() {
+      ['name','address','devices','serials','password','graphicalPassword','passwordType','createdBy'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    }
+
+    function submitObject() {
       const data = {
-        code,
+        code: currentCode,
         name: document.getElementById('name').value,
         address: document.getElementById('address').value,
         devices: document.getElementById('devices').value,
@@ -74,19 +104,41 @@
         password: document.getElementById('password').value,
         graphical_password: document.getElementById('graphicalPassword').value,
         password_type: document.getElementById('passwordType').value,
-        date_added: new Date().toISOString().slice(0,10),
-        created_by: document.getElementById('createdBy').value,
         date_modified: new Date().toISOString().slice(0,10),
         modified_by: document.getElementById('createdBy').value
       };
 
-      fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data })
-      })
-      .then(res => res.json())
-      .then(() => alert('Объект добавлен'));
+      if (!isEditMode) {
+        data.date_added = data.date_modified;
+        data.created_by = data.modified_by;
+        fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data })
+        })
+        .then(res => res.json())
+        .then(() => {
+          alert('Объект добавлен');
+          searchObject(currentCode);
+        });
+      } else {
+        fetch(`${API_URL}/code/${currentCode}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data })
+        })
+        .then(res => res.json())
+        .then(() => {
+          alert('Объект обновлён');
+          searchObject(currentCode);
+        });
+      }
+    }
+
+    function goBack() {
+      document.getElementById('result').classList.add('hidden');
+      document.getElementById('notFound').classList.add('hidden');
+      document.getElementById('addForm').classList.add('hidden');
     }
   </script>
 </body>
